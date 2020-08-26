@@ -7,7 +7,7 @@ import (
 
 var indent int
 
-var Debug io.Writer
+var Debug io.Writer // = os.Stderr
 
 func printIndent() {
 	for i := 0; i < indent; i++ {

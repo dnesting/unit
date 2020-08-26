@@ -60,3 +60,19 @@ func TestCelsius(t *testing.T) {
 		t.Errorf("KToC(%q) should result in %q, got %q (eq=%v err=%v)", k, c, r, eq, err)
 	}
 }
+
+func TestPrefixes(t *testing.T) {
+	a := si.Gram(2000)
+	b := si.Kilogram(2)
+	eq, err := a.Equal(b)
+	if !eq || err != nil {
+		t.Errorf("%q should equal %q, got eq=%v err=%v", a, b, eq, err)
+	}
+
+	a = si.Milli(si.Gram).Mul(si.Kilo(si.Meter)).Div(si.Second.Pow(2))(5.123)
+	e := "5.123 km mg/s^2"
+	r := a.String()
+	if e != r {
+		t.Errorf("expected %q, got %q", e, r)
+	}
+}

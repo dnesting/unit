@@ -154,14 +154,12 @@ func (a Units) Equiv(b Units) bool {
 // Cancel identifies units in both the numerator and denominator and
 // removes them.  Units must be exact matches; no reduction is performed.
 func (a *Units) cancel() {
-	defer tracein("%q.Cancel()", a)()
 	var nr, dr int // read index to r.N and a.D
 	var nw, dw int // write index, always <= the read index
 
 	// First sort by symbol, with nil values at the end
 	sort.Sort(unitList(a.N))
 	sort.Sort(unitList(a.D))
-	tracemsg("sorted = %q", a)
 
 	for nr < len(a.N) && dr < len(a.D) {
 		if a.N[nr] == nil {
@@ -230,20 +228,21 @@ func (a *Units) cancel() {
 	}
 	a.N = a.N[:nw]
 	a.D = a.D[:dw]
-	tracemsg("= %q", a)
 }
 
 func reduceLine(left []Unit, start int) (mult float64, res, right []Unit) {
 	defer tracein("reduceLine(%v, %d)", left, start)()
 	mult = 1
 	for i := start; i < len(left); i++ {
-		tracemsg("item %d primitive? %v", i, IsPrimitive(left[i]))
+		tracemsg("item %d=%v primitive? %v", i, left[i], IsPrimitive(left[i]))
 		if !IsPrimitive(left[i]) {
+			tracemsg("- %v.Value() = %v", left[i], left[i].Value())
 			val := left[i].Value().Reduce()
 			mult *= val.Value()
 			us := val.Units()
 			left = append(left, us.N...)
 			right = append(right, us.D...)
+			tracemsg("- replacing %v with %v", left[i], us)
 			left[i] = nil
 		}
 	}

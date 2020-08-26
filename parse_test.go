@@ -11,6 +11,7 @@ func TestParse(t *testing.T) {
 	var r unit.Registry
 	m := r.Primitive("m")
 	s := r.Primitive("s")
+	k := r.Prefix("k", 1000)
 	mps := r.Derive("mps", m.Div(s))
 	foo := unit.Primitive("foo") // not registered
 
@@ -46,6 +47,9 @@ func TestParse(t *testing.T) {
 		{"23 foo", false, foo(23), "", "missing unit but ok"},
 		{"23 Ω", true, ohm(23), "", "ohm symbol"},
 		{"23 °C", true, degC(23), "", "degrees Celsius symbol"},
+
+		{"23 km/ks", true, k(m).Div(k(s))(23), "", "with prefix"},
+		{"23 km/ks", true, m.Div(s)(23), "", "with prefix, reduced"},
 	}
 
 	for _, c := range cases {

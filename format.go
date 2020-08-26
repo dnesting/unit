@@ -2,6 +2,7 @@ package unit
 
 import (
 	"fmt"
+	"runtime/debug"
 	"strings"
 )
 
@@ -206,7 +207,7 @@ func (f *Formatter) formatUnitList(us []Unit, mult int) (r []string) {
 		if u == nil {
 			continue
 		}
-		if u == prev {
+		if u.Equal(prev) {
 			pow++
 			continue
 		}
@@ -248,6 +249,12 @@ func (f *Formatter) FormatUnits(us Units) string {
 }
 
 func (f *Formatter) Format(v Value) string {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("stacktrace from panic: \n" + string(debug.Stack()))
+			panic(r)
+		}
+	}()
 	return f.Sprintf(f.valueFmt, v)
 }
 

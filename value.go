@@ -44,6 +44,10 @@ func (a Value) Equal(b Qualified) (bool, error) {
 	return a.Compare(b, func(a, b float64) bool { return a == b })
 }
 
+func (a Value) Approx(b Qualified, within float64) (bool, error) {
+	return a.Compare(b, func(a, b float64) bool { return math.Abs(a-b) < within })
+}
+
 // Less returns true if the units for a and b are equivalent, and the
 // scalar value of a is less than b.  Returns an Incomparable error if
 // the units are not conformable.
@@ -97,7 +101,7 @@ func (a Value) AddN(b float64) (r Value) {
 func (a Value) conform(b Value) (r Value, ok bool) {
 	if !a.U.Equal(b.Units()) {
 		var remain Units
-		b, remain = b.Convert(a.U.Make)
+		b, remain = b.convertPass(a.U.Make)
 		if !remain.IsEmpty() {
 			return
 		}
@@ -146,12 +150,35 @@ func (a Value) Pow(n int) (r Value) {
 // Convert forces a into the units of wanted.  Returns the resulting value
 // and any "extra" units that indicate non-conformability between a and wanted.
 // For instance, "5 m/s".Convert("m") will return ("5 m", "1/s").
-func (a Value) Convert(wanted Maker) (result Value, remainder Units) {
+func (a Value) Convert(wanted Maker) (result Value, remain Units) {
+	defer tracein("%q.Convert(%q)", a, wanted)()
+
+	// First pass establishes the result in the units of wanted.
+	result, remain = a.convertPass(wanted) // 5m/s.convert(m) -> 5m, 1 Hz
+
+	if !remain.IsEmpty() {
+		// Second pass converts the remainder back into a's units.  The goal here
+		// is to get us out of primitive units if possible.
+		tracemsg("pass1=%q %q", result, remain)
+		rv, extra := remain.Make(1).convertPass(a.U.Make) // 1Hz.convert(m/s) -> 1/s, cs
+		tracemsg("pass2=%q %q", rv, extra)
+		rv = rv.Mul(extra.Make(1))
+		result.S /= rv.S
+		remain = rv.U
+	}
+	tracemsg("result=%q remain=%q", result, remain)
+	return
+}
+
+// convertPass returns a with the units in wanted, along with the primitive
+// units that were the remainder after the conversion.  It should be true
+// that a == result.Mul(remainder).
+func (a Value) convertPass(wanted Maker) (result Value, remainder Units) {
 	if a.Units().Equal(wanted.Units()) {
 		result = a
 		return
 	}
-	defer tracein("%q.Convert(%q)", a, wanted)()
+	defer tracein("%q.convertPass(%q)", a, wanted)()
 	rv := a.Div(wanted).Units().Reduce() // Divide out the wanted units
 	tracemsg("result=%q remain=%q", wanted(a.S*rv.S), rv.U)
 	return wanted(a.S * rv.S), rv.U

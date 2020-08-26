@@ -170,10 +170,10 @@ func TestConvert(t *testing.T) {
 
 	a = m(2.54 / 100 * 2)
 	e = in(2)
-	r, extra = a.Convert(m)
+	r, extra = a.Convert(in)
 	eq, err = r.Compare(e, func(a, b float64) bool { return math.Round(a*10000)/10000 == math.Round(b*10000)/10000 })
 	if !eq || err != nil || !extra.IsEmpty() {
-		t.Errorf("%q.Convert(%v) should give %v, got %v (extra=%q eq=%v err=%v)", a.String(), m, e, r, extra, eq, err)
+		t.Errorf("%q.Convert(%v) should give %v, got %v (extra=%q eq=%v err=%v)", a.String(), in, e, r, extra, eq, err)
 	}
 }
 
