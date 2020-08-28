@@ -11,6 +11,7 @@ func TestParse(t *testing.T) {
 	var r unit.Registry
 	m := r.Primitive("m")
 	s := r.Primitive("s")
+	g := r.Primitive("g")
 	k := r.Prefix("k", 1000)
 	mps := r.Derive("mps", m.Div(s))
 	foo := unit.Primitive("foo") // not registered
@@ -50,6 +51,8 @@ func TestParse(t *testing.T) {
 
 		{"23 km/ks", true, k(m).Div(k(s))(23), "", "with prefix"},
 		{"23 km/ks", true, m.Div(s)(23), "", "with prefix, reduced"},
+
+		{"1.234 kg⋅m⋅s⁻²", true, k(g).Mul(m).Div(s.Pow(2))(1.234), "", "with unicode"},
 	}
 
 	for _, c := range cases {
@@ -66,7 +69,7 @@ func TestParse(t *testing.T) {
 				}
 			}
 			if c.expected != nil {
-				if eq, _ := v.Equal(c.expected); !eq {
+				if !v.Equal(c.expected) {
 					t.Errorf("expected %v, got %v", c.expected, v)
 				}
 			}

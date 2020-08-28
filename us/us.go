@@ -14,14 +14,14 @@ var Deg = unit.NewRegistry("degree", Registry)
 
 var (
 	Inch  = Registry.Derive("in", si.Meter(0.0254), "\"", "″")
-	Pica  = Registry.Derive("P̸", Inch(1).DivN(6))
-	Point = Registry.Derive("p", Inch(1).DivN(6*12))
+	Pica  = Registry.Derive("P̸", Inch(1.0/6))
+	Point = Registry.Derive("p", Inch(1.0/72))
 	Foot  = Registry.Derive("ft", Inch(12), "'", "′")
 	Yard  = Registry.Derive("yd", Foot(3))
 	Mile  = Registry.Derive("mi", Foot(5280))
 
-	SurveyFoot = Survey.Derive("ft", si.Meter(float64(1200)/3937))
-	SurveyMile = Survey.Derive("mi", si.Meter(float64(6336000)/3937))
+	SurveyFoot = Survey.Derive("ft", si.Meter(1200.0/3937))
+	SurveyMile = Survey.Derive("mi", si.Meter(6336000.0/3937))
 
 	Fathom       = Registry.Derive("ftm", Yard(2))
 	NauticalMile = Registry.Derive("NM", si.Meter(1852), "nmi")
@@ -53,14 +53,18 @@ var (
 	Day    = Registry.Derive("d", Hour(24))
 
 	Degree    = Registry.Derive("°", si.Radian(1).DivN(2*math.Pi).MulN(360), "deg")
-	DegMinute = Deg.Derive("'", Degree(1).DivN(60))
-	DegSecond = Deg.Derive("\"", DegMinute(1).DivN(60))
+	DegMinute = Deg.Derive("'", Degree(1.0/60))
+	DegSecond = Deg.Derive("\"", DegMinute(1.0/60))
 )
+
+func init() {
+	unit.DefaultFormatter.Config(unit.WithNoGapFor(Degree, DegMinute, DegSecond))
+}
 
 func ToDMS(deg unit.Value) (d, m, s unit.Value, ok bool) {
 	var remain unit.Units
 	d, remain = deg.Convert(Degree)
-	if !remain.IsEmpty() {
+	if !remain.Empty() {
 		return
 	}
 	di := math.Floor(d.S)
@@ -79,7 +83,7 @@ func ToDMS(deg unit.Value) (d, m, s unit.Value, ok bool) {
 
 func ToCelsius(degF unit.Value) (c unit.Value, ok bool) {
 	fvalue, remain := degF.Convert(DegFahrenheit)
-	if !remain.IsEmpty() {
+	if !remain.Empty() {
 		return
 	}
 	fvalue.S -= 32
@@ -89,7 +93,7 @@ func ToCelsius(degF unit.Value) (c unit.Value, ok bool) {
 
 func ToFahrenheit(degC unit.Value) (f unit.Value, ok bool) {
 	cvalue, remain := degC.Convert(si.DegCelsius)
-	if !remain.IsEmpty() {
+	if !remain.Empty() {
 		return
 	}
 	cvalue, _ = cvalue.Convert(DegFahrenheit)

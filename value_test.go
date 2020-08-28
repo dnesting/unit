@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"fmt"
-	"math"
 	"testing"
 
 	"github.com/dnesting/unit"
@@ -12,30 +11,31 @@ func TestValueEqual(t *testing.T) {
 	meter := unit.Primitive("m")
 	second := unit.Primitive("s")
 	a := meter(5)
-	if eq, err := a.Equal(a); !eq || err != nil {
-		t.Errorf("%v and itself should be equal, err=%v", a, err)
+	if !a.Equal(a) {
+		t.Errorf("%v and itself should be equal", a)
 	}
 	b := meter(5)
-	if eq, err := a.Equal(b); !eq || err != nil {
-		t.Errorf("%v and %v should be equal, err=%v", a, b, err)
+	if !a.Equal(b) {
+		t.Errorf("%v and %v should be equal", a, b)
 	}
 	b = meter(6)
-	if eq, err := a.Equal(b); eq || err != nil {
-		t.Errorf("%v and %v should NOT be equal but have compatible units, err=%v", a, b, err)
+	if a.Equal(b) {
+		t.Errorf("%v and %v should NOT be equal but have compatible units", a, b)
 	}
 	b = second(5)
-	if eq, err := a.Equal(b); eq || err == nil {
+	if a.Equal(b) {
 		t.Errorf("%v and %v should NOT be equal with incompatible units", a, b)
 	}
 
 	mps := unit.Derive("mps", meter.Div(second))
 	a = mps(2)
 	b = meter.Div(second)(2)
-	if eq, err := a.Equal(b); !eq || err != nil {
-		t.Errorf("%v and %v should be equal because their units are equivalent, err=%v", a, b, err)
+	if !a.Equal(b) {
+		t.Errorf("%v and %v should be equal because their units are equivalent", a, b)
 	}
 }
 
+/*
 func TestValueLess(t *testing.T) {
 	meter := unit.Primitive("m")
 	second := unit.Primitive("s")
@@ -59,6 +59,7 @@ func TestValueLess(t *testing.T) {
 		t.Errorf("%v should be NOT less than %v with incompatible units", a, b)
 	}
 }
+*/
 
 func TestMath(t *testing.T) {
 	meter := unit.Primitive("m")
@@ -68,72 +69,72 @@ func TestMath(t *testing.T) {
 	a := mps(2)
 	e := mps(6)
 	r := a.MulN(3)
-	if ok, _ := e.Equal(r); !ok {
+	if !e.Equal(r) {
 		t.Errorf("%v.MulN(3) should give us %v, got %v", a, e, r)
 	}
 
 	b := mps(3)
 	e = meter.Pow(2).Div(second.Pow(2))(6)
 	r = a.Mul(b)
-	if eq, err := e.Equal(r); !eq || err != nil {
-		t.Errorf("%v.Mul(%v) should give us %v, got %v (err=%v)", a, b, e, r, err)
+	if !e.Equal(r) {
+		t.Errorf("%v.Mul(%v) should give us %v, got %v", a, b, e, r)
 	}
 
 	a = meter.Pow(2).Div(second.Pow(2))(6)
 	b = mps(3)
 	e = mps(2)
 	r = a.Div(b)
-	if eq, err := e.Equal(r); !eq || err != nil {
-		t.Errorf("%v.Div(%v) should give us %v, got %v (err=%v)", a, b, e, r, err)
+	if !e.Equal(r) {
+		t.Errorf("%v.Div(%v) should give us %v, got %v", a, b, e, r)
 	}
 
 	a = mps(6)
 	e = mps(2)
 	r = a.DivN(3)
-	if eq, err := e.Equal(r); !eq || err != nil {
+	if !e.Equal(r) {
 		t.Errorf("%v.DivN(3) should give us %v, got %v", a, e, r)
 	}
 
 	a = mps(2)
 	e = meter.Pow(3).Div(second.Pow(3))(8)
 	r = a.Pow(3) // 8 m^3/s^3
-	if eq, err := e.Equal(r); !eq || err != nil {
-		t.Errorf("%v.Pow(3) should give us %v, got %v (err=%v)", a, e, r, err)
+	if !e.Equal(r) {
+		t.Errorf("%v.Pow(3) should give us %v, got %v", a, e, r)
 	}
 
 	a = meter.Pow(2).Div(second.Pow(2))(4)
 	e = meter.Pow(4).Div(second.Pow(4))(float64(1) / 16)
 	r = a.Pow(-2)
-	if eq, err := e.Equal(r); !eq || err != nil {
-		t.Errorf("%v.Pow(-2) should give us %v, got %v (err=%v)", a, e, r, err)
+	if !e.Equal(r) {
+		t.Errorf("%v.Pow(-2) should give us %v, got %v", a, e, r)
 	}
 
 	a = mps(4)
 	e = unit.Scalar(1)(1)
 	r = a.Pow(0)
-	if eq, err := e.Equal(r); !eq || err != nil {
-		t.Errorf("%v.Pow(0) should give us %v, got %v (err=%v)", a, e, r, err)
+	if !e.Equal(r) {
+		t.Errorf("%v.Pow(0) should give us %v, got %v", a, e, r)
 	}
 
 	e = a
 	r = a.Pow(1)
-	if eq, err := e.Equal(r); !eq || err != nil {
-		t.Errorf("%v.Pow(1) should give us %v, got %v (err=%v)", a, e, r, err)
+	if !e.Equal(r) {
+		t.Errorf("%v.Pow(1) should give us %v, got %v", a, e, r)
 	}
 
 	a = mps(3)
 	e = mps(5)
 	r = a.AddN(2)
-	if eq, err := e.Equal(r); !eq || err != nil {
-		t.Errorf("%v.AddN(2) should give us %v, got %v (err=%v)", a, e, r, err)
+	if !e.Equal(r) {
+		t.Errorf("%v.AddN(2) should give us %v, got %v", a, e, r)
 	}
 
 	a = mps(2)
 	b = mps(3)
 	e = mps(5)
 	r, ok := a.Add(b)
-	if eq, err := e.Equal(r); !ok || !eq || err != nil {
-		t.Errorf("%v.Add(%v) should give us %v, got %v (ok=%v eq=%v err=%v)", a, b, e, r, ok, eq, err)
+	if !e.Equal(r) || !ok {
+		t.Errorf("%v.Add(%v) should give us %v, got %v (ok=%v)", a, b, e, r, ok)
 	}
 	b = meter(1) // different unit than a
 	r, ok = a.Add(b)
@@ -145,8 +146,8 @@ func TestMath(t *testing.T) {
 	b = mps(2)
 	e = mps(3)
 	r, ok = a.Sub(b)
-	if eq, err := e.Equal(r); !ok || !eq || err != nil {
-		t.Errorf("%v.Sub(%v) should give us %v, got %v (ok=%v eq=%v err=%v)", a, b, e, r, ok, eq, err)
+	if !e.Equal(r) || !ok {
+		t.Errorf("%v.Sub(%v) should give us %v, got %v (ok=%v)", a, b, e, r, ok)
 	}
 	b = meter(1)
 	r, ok = a.Sub(b)
@@ -163,17 +164,15 @@ func TestConvert(t *testing.T) {
 	a := in(2)
 	e := m(2.54 * 2 / 100)
 	r, extra := a.Convert(m)
-	eq, err := r.Compare(e, func(a, b float64) bool { return math.Round(a*10000)/10000 == math.Round(b*10000)/10000 })
-	if !eq || err != nil || !extra.IsEmpty() {
-		t.Errorf("%q.Convert(%v) should give %v, got %v (extra=%q eq=%v err=%v)", a.String(), m, e, r, extra, eq, err)
+	if !r.Approx(e, 0.00001) || !extra.Empty() {
+		t.Errorf("%q.Convert(%v) should give %v, got %v (extra=%q)", a.String(), m, e, r, extra)
 	}
 
 	a = m(2.54 / 100 * 2)
 	e = in(2)
 	r, extra = a.Convert(in)
-	eq, err = r.Compare(e, func(a, b float64) bool { return math.Round(a*10000)/10000 == math.Round(b*10000)/10000 })
-	if !eq || err != nil || !extra.IsEmpty() {
-		t.Errorf("%q.Convert(%v) should give %v, got %v (extra=%q eq=%v err=%v)", a.String(), in, e, r, extra, eq, err)
+	if !r.Approx(e, 0.00001) || !extra.Empty() {
+		t.Errorf("%q.Convert(%v) should give %v, got %v (extra=%q)", a.String(), in, e, r, extra)
 	}
 }
 
@@ -193,7 +192,7 @@ func TestString(t *testing.T) {
 		{"0.1234 m/s^2", mps2(0.1234), "real starting with zero"},
 
 		{"m", m, "unit m only"},
-		{"1/s", hz, "unit 1/s only"},
+		{"/s", hz, "unit /s only"},
 		{"m/s^2", mps2, "unit mps2 only"},
 	} {
 		t.Run(c.desc, func(t *testing.T) {
@@ -243,4 +242,47 @@ func TestFormat(t *testing.T) {
 			}
 		})
 	}
+}
+
+func ExampleValue_Convert() {
+	// Set up some initial units
+	kg := unit.Primitive("kg")
+	m := unit.Primitive("m")
+	s := unit.Primitive("s")
+	n := unit.Derive("N", kg.Mul(m).Div(s.Pow(2)))
+	j := unit.Derive("J", n.Mul(m))
+
+	x := j(1.234)
+	fmt.Println("x =", x)
+
+	// Convert "1.234 J" to "N m", which should be a conforming conversion.
+	xnm, extra := x.Convert(n.Mul(m))
+	fmt.Println("as N-m =", xnm, "conforming?", extra.Empty())
+
+	// Convert "1.234 J" to "N", which should be non-conforming, with extra units
+	// returned in extra.
+	xn, extra := x.Convert(n)
+	fmt.Println("as N =", xn, "conforming?", extra.Empty())
+
+	// Output:
+	// x = 1.234 J
+	// as N-m = 1.234 N m conforming? true
+	// as N = 1.234 N conforming? false
+}
+
+func ExampleValue_Reduce() {
+	// Set up some initial units
+	kg := unit.Primitive("kg")
+	m := unit.Primitive("m")
+	s := unit.Primitive("s")
+	n := unit.Derive("N", kg.Mul(m).Div(s.Pow(2)))
+	j := unit.Derive("J", n.Mul(m))
+
+	x := j(1.234)
+	fmt.Println("x is", x)
+	fmt.Println("x reduces to", x.Reduce())
+
+	// Output:
+	// x is 1.234 J
+	// x reduces to 1.234 kg m^2/s^2
 }

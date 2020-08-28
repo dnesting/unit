@@ -34,15 +34,20 @@ func TestFormatter(t *testing.T) {
 		opts     []unit.FormatOpt
 	}{
 		{"basic", "1.234 kg m/s^2", opts()},
-		{"unitfn", "1.234 _kg_ _m_/_s_^2", opts(
-			unit.WithUnitFunc(func(u unit.Unit) string { return fmt.Sprintf("_%s_", u.Symbol()) }))},
-		{"fraction", "1.234 kg m|s^2", opts(unit.WithFraction("|"))},
+		/*
+			{"unitfn", "1.234 _kg_ _m_/_s_^2", opts(
+				unit.WithUnitFunc(func(u unit.Unit) string { return fmt.Sprintf("_%s_", u.Symbol()) }))},
+		*/
+		{"fraction", "1.234 kg m | s^2", opts(unit.WithFraction(" | "))},
 		{"unitsep", "1.234 kg-m/s^2", opts(unit.WithUnitSep("-"))},
-		{"valuesep", "1.234&nbsp;kg-m/s^2", opts(unit.WithBeforeUnits("&nbsp;"), unit.WithUnitSep("-"))},
+		//{"valuesep", "1.234&nbsp;kg-m/s^2", opts(unit.WithBeforeUnits("&nbsp;"), unit.WithUnitSep("-"))},
 		{"nogap", "1.234kg m/s^2", opts(unit.WithNoGap())},
+		{"nogap-yes", "1.234kg m/s^2", opts(unit.WithNoGapFor(v.Units().Make))},
+		{"nogap-no", "1.234 kg m/s^2", opts(unit.WithNoGapFor(kg))},
 		{"fmt", "1.23400 kg m/s^2", opts(unit.WithFmt("%.5f"))},
 		{"nofraction", "1.234 kg m s^-2", opts(unit.WithNoFraction())},
 		{"unicode", "1.234 kg⋅m⁄s²", opts(unit.WithUnicode())},
+		{"unicode-nofrac", "1.234 kg⋅m⋅s⁻²", opts(unit.WithUnicode(), unit.WithNoFraction())},
 		{"mathml", "<mn>1.234</mn> <mfrac><mrow><mi>kg</mi><mo>⋅</mo><mi>m</mi></mrow><mrow><msup><mi>s</mi><mn>2</mn></msup></mrow></mfrac>",
 			opts(unit.WithMathML())},
 		{"mathml-nogap", "<mn>1.234</mn><mfrac><mrow><mi>kg</mi><mo>⋅</mo><mi>m</mi></mrow><mrow><msup><mi>s</mi><mn>2</mn></msup></mrow></mfrac>",
@@ -56,4 +61,32 @@ func TestFormatter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func ExampleFormatter() {
+	m := unit.Primitive("m")
+	kg := unit.Primitive("kg")
+	s := unit.Primitive("s")
+	v := kg.Mul(m).Div(s.Pow(2))(1.234)
+
+	f := unit.NewFormatter(unit.WithNoFraction())
+	fmt.Println(f.Format(v))
+	// Output:
+	// 1.234 kg m s^-2
+}
+
+func ExampleFormatter_defaultFormatter() {
+	defer func() { unit.DefaultFormatter = *unit.NewFormatter() }() // ignore this, it's just to keep tests deterministic
+
+	m := unit.Primitive("m")
+	kg := unit.Primitive("kg")
+	s := unit.Primitive("s")
+	v := kg.Mul(m).Div(s.Pow(2))(1.234)
+
+	fmt.Println(v.String())
+	unit.DefaultFormatter.Config(unit.WithNoFraction())
+	fmt.Println(v.String())
+	// Output:
+	// 1.234 kg m/s^2
+	// 1.234 kg m s^-2
 }

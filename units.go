@@ -1,28 +1,33 @@
 package unit
 
 import (
-	"fmt"
 	"sort"
-	"strings"
 )
 
+// Units represent a ratio of unit lists that are attached to qualified values.
+// Units and its contents may be re-used internally and must not be directly
+// modified (including its numerator and denominator slices).  Units implements
+// Qualified, representing itself as a qualified value of 1.
 type Units struct {
 	N []Unit
 	D []Unit
 }
 
+/*
 func (us Units) Singular() Unit {
 	if len(us.N) == 1 && len(us.D) == 0 {
 		return us.N[0]
 	}
 	return nil
 }
+*/
 
-func (us Units) IsEmpty() bool {
+// Empty returns true if this Units has no units in the numerator or denominator.
+func (us Units) Empty() bool {
 	return len(us.N) == 0 && len(us.D) == 0
 }
 
-// Recip returns the reciprocal of units, swapping numerator and denominator.
+// Recip returns the reciprocal of Units, swapping numerator and denominator.
 func (a Units) Recip() Units {
 	var r Units
 	r.N = append(r.N, a.D...)
@@ -30,9 +35,14 @@ func (a Units) Recip() Units {
 	return r
 }
 
+// Value returns 1.
 func (a Units) Value() float64 { return 1 }
-func (a Units) Units() Units   { return a }
 
+// Units returns itself.
+func (a Units) Units() Units { return a }
+
+// unitList represents a list of Units.  It implements sort.Interface to sort
+// by symbol name (sorting nil values last).
 type unitList []Unit
 
 func (ul unitList) Len() int      { return len(ul) }
@@ -46,6 +56,9 @@ func (ul unitList) Less(a, b int) bool {
 	}
 	return ul[a].Symbol() < ul[b].Symbol()
 }
+
+// Equal returns true if both unit lists contain equal units.  This method
+// assumes the unitList is sorted.
 func (a unitList) Equal(b unitList) bool {
 	if len(a) != len(b) {
 		return false
@@ -57,6 +70,8 @@ func (a unitList) Equal(b unitList) bool {
 	}
 	return true
 }
+
+/*
 func (ul unitList) Format(sep string, expFn func(s string, n int) string) string {
 	var r []string
 	var exp int
@@ -75,7 +90,7 @@ func (ul unitList) Format(sep string, expFn func(s string, n int) string) string
 		if u == nil {
 			continue
 		}
-		if u.Equal(last) {
+		if Equal(u, last) {
 			exp++
 		} else {
 			if last != nil {
@@ -98,16 +113,22 @@ func defaultExp(s string, n int) string {
 func (ul unitList) String() string {
 	return ul.Format(" ", defaultExp)
 }
+*/
 
 // Mul returns the multiplication of the two units, effectively creating
 // Units{N: a.N+b.N, D: a.D+b.D}.
 func (a Units) Mul(b Units) Units {
+	r := a.mul(b)
+	r.cancel()
+	return r
+}
+
+func (a Units) mul(b Units) Units {
 	var r Units
 	r.N = append(r.N, a.N...)
 	r.N = append(r.N, b.N...)
 	r.D = append(r.D, a.D...)
 	r.D = append(r.D, b.D...)
-	r.cancel()
 	return r
 }
 
@@ -119,10 +140,9 @@ func (a Units) Div(b Units) Units {
 // Pow returns a raised to the power of p, equivalent to multiplying a by
 // its original value p-1 times.  If p is 0, an empty Units will be returned.
 func (a Units) Pow(p int) Units {
-	// XXX: The type of p is int, not a float. This means it's not possible to
+	// The type of p is int, not a float. This means it's not possible to
 	// reverse the effect of this function to move, say, from m^2/s^2 to m/s by
-	// passing in 0.5.  This opens the door for non-integer exponents for units,
-	// necessitating some redesign.
+	// passing in 0.5.
 	if p < 0 {
 		return a.Recip().Pow(-p).Recip()
 	}
@@ -131,9 +151,10 @@ func (a Units) Pow(p int) Units {
 	}
 	r := a
 	for p-1 > 0 {
-		r = r.Mul(a)
+		r = r.mul(a)
 		p--
 	}
+	r.cancel()
 	return r
 }
 
@@ -142,6 +163,7 @@ func (a Units) Equal(b Units) bool {
 	return unitList(a.N).Equal(b.N) && unitList(a.D).Equal(b.D)
 }
 
+// Equiv returns true if a and b reduce to the same primitive units.
 func (a Units) Equiv(b Units) bool {
 	if a.Equal(b) {
 		return true
@@ -191,13 +213,10 @@ func (a *Units) cancel() {
 			dr++
 			dw++
 		} else {
-			// neither symbol compares less than the other, but consult the Unit
-			// implementation of Equal just to be sure.
+			// TODO: We need to scan forward for all equal symbols to find one
+			// for which Equal returns true, since we could have multiple units that
+			// have the same symbol but different definitions.
 			if !a.N[nr].Equal(a.D[dr]) {
-				// equal symbols but Equal() returned false, so just keep both
-				// XXX this is potentally buggy if we sort two "foo" units according
-				// to symbol.  If we're going to have a Unit.Equal, that probably
-				// means we need a Unit.Less.  Ugh.
 				if nr != nw {
 					a.N[nw] = a.N[nr]
 				}
@@ -236,8 +255,8 @@ func reduceLine(left []Unit, start int) (mult float64, res, right []Unit) {
 	for i := start; i < len(left); i++ {
 		tracemsg("item %d=%v primitive? %v", i, left[i], IsPrimitive(left[i]))
 		if !IsPrimitive(left[i]) {
-			tracemsg("- %v.Value() = %v", left[i], left[i].Value())
-			val := left[i].Value().Reduce()
+			tracemsg("- %v.Deriv() = %v", left[i], left[i].Deriv())
+			val := left[i].Deriv().Reduce()
 			mult *= val.Value()
 			us := val.Units()
 			left = append(left, us.N...)
@@ -250,9 +269,8 @@ func reduceLine(left []Unit, start int) (mult float64, res, right []Unit) {
 	return mult, left, right
 }
 
-// Reduce reduce us to primitive units.  The return type is a Value since
-// there may be a scalar multiplier that needs to be applied to the final
-// result.
+// Reduce reduces us to primitive units.  The return type is a Value since
+// the act of reducing may introduce a multiplier.
 func (us Units) Reduce() (r Value) {
 	defer tracein("%q.Reduce()", us)()
 	var u Units
@@ -284,6 +302,7 @@ func (us Units) Reduce() (r Value) {
 	return Value{S: mult, U: u}
 }
 
+// Make creates a new qualified value.
 func (us Units) Make(v float64) Value {
 	return Value{
 		S: v,
@@ -291,8 +310,9 @@ func (us Units) Make(v float64) Value {
 	}
 }
 
+/*
 func (us Units) format(unitSep, fracSep string, expFn func(s string, exp int) string) string {
-	if us.IsEmpty() {
+	if us.Empty() {
 		return ""
 	}
 	var sb strings.Builder
@@ -311,4 +331,9 @@ func (us Units) format(unitSep, fracSep string, expFn func(s string, exp int) st
 
 func (us Units) String() string {
 	return us.format(" ", "/", nil)
+}
+*/
+
+func (us Units) String() string {
+	return DefaultFormatter.FormatUnits(us)
 }

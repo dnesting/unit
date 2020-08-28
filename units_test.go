@@ -1,12 +1,14 @@
 package unit_test
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/dnesting/unit"
 )
 
+/*
 func TestSingular(t *testing.T) {
 	prim := unit.Primitive("prim").Unit()
 	us := unit.Units{
@@ -36,23 +38,24 @@ func TestSingular(t *testing.T) {
 		t.Errorf("Units with units only in denominator should have nil Singular(), got %v", u)
 	}
 }
+*/
 
 func TestEmpty(t *testing.T) {
 	prim := unit.Primitive("prim").Unit()
 	var u unit.Units
-	if !u.IsEmpty() {
+	if !u.Empty() {
 		t.Errorf("empty units should be empty")
 	}
 	u = unit.Units{
 		N: []unit.Unit{prim},
 	}
-	if u.IsEmpty() {
+	if u.Empty() {
 		t.Errorf("non-empty units should not be empty")
 	}
 	u = unit.Units{
 		D: []unit.Unit{prim},
 	}
-	if u.IsEmpty() {
+	if u.Empty() {
 		t.Errorf("non-empty units should not be empty")
 	}
 }
@@ -151,16 +154,67 @@ func TestMakeWithMultiply(t *testing.T) {
 
 	e := a(2000)
 	r := ka(2)
-	if eq, err := e.Equal(r); !eq || err != nil {
-		t.Errorf("ka(2) should equal a(2000), expected %v, got %v (err=%v)", e, r, err)
+	if !e.Equal(r) {
+		t.Errorf("ka(2) should equal a(2000), expected %v, got %v", e, r)
 	}
 
 	ka = unit.Derive("ka", a.Mul(unit.Scalar(1000)))
 	r = ka(2)
-	if eq, err := e.Equal(r); !eq || err != nil {
-		t.Errorf("ka(2) should equal a(2000), expected %v, got %v (err=%v)", e, r, err)
+	if !e.Equal(r) {
+		t.Errorf("ka(2) should equal a(2000), expected %v, got %v", e, r)
 	}
-	if eq, err := r.Equal(e); !eq || err != nil {
-		t.Errorf("ka(2) should equal a(2000), expected %v, got %v (err=%v)", e, r, err)
+	if !r.Equal(e) {
+		t.Errorf("ka(2) should equal a(2000), expected %v, got %v", e, r)
 	}
+}
+
+func TestSameSymbol(t *testing.T) {
+	// We support two units with the same symbol, such as us.Mile and us.SurveyMile.
+	m := unit.Primitive("m")
+	mi := unit.Derive("mi", m(5280*12*0.0254))
+	smi := unit.Derive("mi", m(5280*12*100.0/3937))
+
+	if mi(1).Equal(smi(1)) {
+		t.Errorf("%q and %q should not be equal", mi(1), smi(1))
+	}
+
+	if mi.Units().Equal(smi.Units()) {
+		t.Errorf("%q and %q should not be equal", mi, smi)
+	}
+
+	a := smi(3)
+	b := mi(2)
+	e := mi(2)
+	r := a.Mul(b).Div(a)
+	if !e.Equal(r) {
+		t.Errorf("%q.Div(%q) should yield %q, got %q", a.Mul(b), a, e, r)
+	}
+
+	a = smi(2)
+	b = mi(2)
+	p := smi(2).Pow(2)
+	r = a.Mul(b)
+	if p.Equal(r) {
+		t.Errorf("%q and %q should not be equal", p, r)
+	}
+}
+
+func ExampleUnits() {
+	kg := unit.Primitive("kg")
+	m := unit.Primitive("m")
+	s := unit.Primitive("s")
+	n := unit.Derive("N", kg.Mul(m).Div(s.Pow(2)))
+
+	x := n(1.234)
+	u := x.Units()
+	r := u.Reduce().Units()
+	fmt.Println(u)
+	fmt.Println(r)
+	fmt.Println("u.Equal(r)?", u.Equal(r))
+	fmt.Println("u.Equiv(r)?", u.Equiv(r))
+	// Output:
+	// N
+	// kg m/s^2
+	// u.Equal(r)? false
+	// u.Equiv(r)? true
 }

@@ -7,33 +7,33 @@ import (
 
 var indent int
 
-var Debug io.Writer // = os.Stderr
+var writer io.Writer // = os.Stderr
 
 func printIndent() {
 	for i := 0; i < indent; i++ {
-		fmt.Fprintf(Debug, ". ")
+		fmt.Fprintf(writer, ". ")
 	}
 }
 
 func tracein(msg string, args ...interface{}) func() {
-	if Debug == nil {
+	if writer == nil {
 		return func() {}
 	}
 	printIndent()
 	indent++
-	fmt.Fprintf(Debug, msg, args...)
-	fmt.Fprintln(Debug, "(")
+	fmt.Fprintf(writer, msg, args...)
+	fmt.Fprintln(writer, "(")
 	return func() {
 		indent--
 		printIndent()
-		fmt.Fprintf(Debug, ")\n")
+		fmt.Fprintf(writer, ")\n")
 	}
 }
 func tracemsg(msg string, args ...interface{}) {
-	if Debug == nil {
+	if writer == nil {
 		return
 	}
 	printIndent()
-	fmt.Fprintf(Debug, msg, args...)
-	fmt.Fprintln(Debug)
+	fmt.Fprintf(writer, msg, args...)
+	fmt.Fprintln(writer)
 }

@@ -25,35 +25,44 @@ type Value struct {
 
 // Compare matches units of a and b, and calls cmpFn to compare the
 // scalar values.  Returns the result of cmpFn, or an Incomparable error
-// if a and b do not have conforming units.
+// if a and b do not reduce to the same primitive units.  If cmpFn is nil,
+// values will be compared for equality.
 func (a Value) Compare(b Qualified, cmpFn func(a, b float64) bool) (bool, error) {
 	if a.Units().Equal(b.Units()) {
+		if cmpFn == nil {
+			return a.Value() == b.Value(), nil
+		}
 		return cmpFn(a.Value(), b.Value()), nil
 	}
 	ab, remain := a.Convert(b.Units().Make)
-	if !remain.IsEmpty() {
+	if !remain.Empty() {
 		return false, fmt.Errorf("%w: %q != %q (diff=%q)", Incomparable, a.Units(), b.Units(), remain)
 	}
 	return cmpFn(ab.Value(), b.Value()), nil
 }
 
 // Equal returns true if the units for a and b are equivalent, and the
-// scalar values are equal.  Returns an Incomparable error if the units
-// are not conformable.
-func (a Value) Equal(b Qualified) (bool, error) {
-	return a.Compare(b, func(a, b float64) bool { return a == b })
+// scalar values are equal.
+func (a Value) Equal(b Qualified) bool {
+	ok, _ := a.Compare(b, func(a, b float64) bool { return a == b })
+	return ok
 }
 
-func (a Value) Approx(b Qualified, within float64) (bool, error) {
-	return a.Compare(b, func(a, b float64) bool { return math.Abs(a-b) < within })
+// Approx returns true if the units for a and b are equivalent, and the
+// scalar values are within within of each other.
+func (a Value) Approx(b Qualified, within float64) bool {
+	ok, _ := a.Compare(b, func(a, b float64) bool { return math.Abs(a-b) < within })
+	return ok
 }
 
+/*
 // Less returns true if the units for a and b are equivalent, and the
 // scalar value of a is less than b.  Returns an Incomparable error if
 // the units are not conformable.
 func (a Value) Less(b Qualified) (bool, error) {
 	return a.Compare(b, func(a, b float64) bool { return a < b })
 }
+*/
 
 // Value returns the scalar (float64) component of v.
 func (v Value) Value() float64 { return v.S }
@@ -101,8 +110,8 @@ func (a Value) AddN(b float64) (r Value) {
 func (a Value) conform(b Value) (r Value, ok bool) {
 	if !a.U.Equal(b.Units()) {
 		var remain Units
-		b, remain = b.convertPass(a.U.Make)
-		if !remain.IsEmpty() {
+		b, remain = b.Convert(a.U.Make)
+		if !remain.Empty() {
 			return
 		}
 	}
@@ -115,7 +124,7 @@ func (a Value) Add(b Value) (r Value, ok bool) {
 	if b, ok = a.conform(b); !ok {
 		return
 	}
-	r.S = a.S + b.Value()
+	r.S = a.S + b.S
 	r.U = a.U
 	ok = true
 	return
@@ -134,7 +143,7 @@ func (a Value) Sub(b Value) (r Value, ok bool) {
 	if b, ok = a.conform(b); !ok {
 		return
 	}
-	r.S = a.S - b.Value()
+	r.S = a.S - b.S
 	r.U = a.U
 	ok = true
 	return
@@ -147,47 +156,27 @@ func (a Value) Pow(n int) (r Value) {
 	return
 }
 
-// Convert forces a into the units of wanted.  Returns the resulting value
-// and any "extra" units that indicate non-conformability between a and wanted.
-// For instance, "5 m/s".Convert("m") will return ("5 m", "1/s").
+// Convert forces a into the units of wanted.  Returns the resulting
+// value and any "extra" units that indicate non-conformability between
+// a and wanted.  For instance, "5 m/s".Convert("m") will return ("5 m",
+// "/s"), and "5 m".Convert("s") will return ("5 s", "m/s").  It should
+// always be true that remain.Mul(result) will return the original value.
 func (a Value) Convert(wanted Maker) (result Value, remain Units) {
 	defer tracein("%q.Convert(%q)", a, wanted)()
-
-	// First pass establishes the result in the units of wanted.
-	result, remain = a.convertPass(wanted) // 5m/s.convert(m) -> 5m, 1 Hz
-
-	if !remain.IsEmpty() {
-		// Second pass converts the remainder back into a's units.  The goal here
-		// is to get us out of primitive units if possible.
-		tracemsg("pass1=%q %q", result, remain)
-		rv, extra := remain.Make(1).convertPass(a.U.Make) // 1Hz.convert(m/s) -> 1/s, cs
-		tracemsg("pass2=%q %q", rv, extra)
-		rv = rv.Mul(extra.Make(1))
-		result.S /= rv.S
-		remain = rv.U
-	}
-	tracemsg("result=%q remain=%q", result, remain)
-	return
-}
-
-// convertPass returns a with the units in wanted, along with the primitive
-// units that were the remainder after the conversion.  It should be true
-// that a == result.Mul(remainder).
-func (a Value) convertPass(wanted Maker) (result Value, remainder Units) {
 	if a.Units().Equal(wanted.Units()) {
 		result = a
 		return
 	}
-	defer tracein("%q.convertPass(%q)", a, wanted)()
 	rv := a.Div(wanted).Units().Reduce() // Divide out the wanted units
-	tracemsg("result=%q remain=%q", wanted(a.S*rv.S), rv.U)
 	return wanted(a.S * rv.S), rv.U
 }
 
+// MustConvert calls a.Convert(wanted) and panics if this returns a
+// non-empty remainder, indicating the units are not conforming.
 func MustConvert(a Qualified, wanted Maker) Value {
 	v := FromQualified(a)
 	result, remain := v.Convert(wanted)
-	if !remain.IsEmpty() {
+	if !remain.Empty() {
 		panic(fmt.Sprintf("Cannot convert %q to units %q (got: %q, remainder: %q)", a, wanted, result, remain))
 	}
 	return result
@@ -202,6 +191,9 @@ func (a Value) Reduce() (v Value) {
 	return
 }
 
+// formatStr reconstructs a Printf-style format string from a fmt.State
+// and verb.  We use this in our Format implementation to let us fall
+// back to the standard implementation.
 func formatStr(f fmt.State, c rune) string {
 	var sb strings.Builder
 	for _, c := range "+-# 0" {
@@ -224,22 +216,13 @@ func formatStr(f fmt.State, c rune) string {
 //
 //    %f %g     render only the scalar portion of the value
 //    %s %q %v  render both the scalar and units portion of the value as a
-//              string, using the %g format to render the scalar portion,
-//              and adding a space in between scalar and units, if present.
+//              string, using DefaultFormatter.
 //
 // For more precise control over the output, you can access the S and
-// U fields of the type directly.
+// U fields of the type directly, or use the Formatter type.
 func (a Value) Format(f fmt.State, c rune) {
 	switch c {
 	case 'v', 's', 'q':
-		/*
-			var sb strings.Builder
-			fmt.Fprintf(&sb, "%g", a.S)
-			if !a.U.IsEmpty() {
-				fmt.Fprintf(&sb, " %s", a.U.String())
-			}
-			s := sb.String()
-		*/
 		s := DefaultFormatter.Format(a)
 		fmt.Fprintf(f, "%"+formatStr(f, c), s)
 	default:
@@ -248,11 +231,11 @@ func (a Value) Format(f fmt.State, c rune) {
 }
 
 func (a Value) String() string {
-	return fmt.Sprintf("%s", a)
+	return DefaultFormatter.Format(a)
 }
 
-func (a Value) Recip() Value {
-	var r Value
+// Recip returns the reciprocal of the value.
+func (a Value) Recip() (r Value) {
 	r.S = 1 / a.S
 	r.U = a.U.Recip()
 	return r

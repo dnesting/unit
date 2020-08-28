@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+// Registry is an experimental type for recording unit symbols for lookup later.
+//
+// This type is under development and will likely change.
 type Registry struct {
 	name   string
 	syms   map[string]Maker

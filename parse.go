@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"strconv"
 	"unicode"
+	"unicode/utf8"
 )
 
 type parser struct {
 	value     string
 	n         int
+	skip      int
 	ch        rune
 	eof       bool
 	reg       *Registry
@@ -19,7 +21,6 @@ type parser struct {
 func newParser(v string, reg *Registry, mustExist bool) *parser {
 	p := &parser{
 		value:     v,
-		n:         -1,
 		reg:       reg,
 		mustExist: mustExist,
 	}
@@ -28,18 +29,18 @@ func newParser(v string, reg *Registry, mustExist bool) *parser {
 }
 
 func (p *parser) next() {
-	if p.n+1 == len(p.value) {
-		p.n++
+	if p.n+p.skip == len(p.value) {
+		p.n += p.skip
 		p.ch = 0
 		p.eof = true
-	} else if p.n+1 < len(p.value) {
-		p.n++
-		p.ch = rune(p.value[p.n])
+	} else if p.n+p.skip < len(p.value) {
+		p.n += p.skip
+		p.ch, p.skip = utf8.DecodeRuneInString(p.value[p.n:])
 	}
 }
 
 func (p *parser) skipSpaces() {
-	for unicode.IsSpace(p.ch) {
+	for unicode.IsSpace(p.ch) || p.ch == DotOperator {
 		p.next()
 	}
 }
@@ -110,27 +111,26 @@ func (p *parser) parseFloat() (value float64, ok bool, err error) {
 	return value, true, nil
 }
 
-func (p *parser) isUnitDiv() bool {
-	return p.ch == '/'
-}
+func isFraction(ch rune) bool { return ch == '/' || ch == FractionSlash }
 
 func (p *parser) parseUnits() (u Units, err error) {
 	start := p.n
-	u.N, err = p.parseUnitLine()
+	u.N, u.D, err = p.parseUnitLine()
 	if err != nil {
 		return Units{}, err
 	}
-	if p.isUnitDiv() {
+	if isFraction(p.ch) {
 		p.next()
 		p.skipSpaces()
-		denom, err := p.parseUnitLine()
+		denom, num, err := p.parseUnitLine()
 		if err != nil {
 			return Units{}, err
 		}
 		if denom == nil {
 			return Units{}, fmt.Errorf("missing units after slash at offset %d", start)
 		}
-		u.D = denom
+		u.D = append(u.D, denom...)
+		u.N = append(u.N, num...)
 	}
 	return u, nil
 }
@@ -144,14 +144,19 @@ func fromSuper(r rune) int {
 	return -1
 }
 
-func (p *parser) isExponent() bool {
-	return p.ch == '^' || fromSuper(p.ch) >= 0
+func isExponent(ch rune) bool {
+	return ch == '^' || fromSuper(ch) >= 0 || ch == superMinus
 }
 
 func (p *parser) parseExponent() (exp int64, err error) {
 	if p.ch == '^' {
 		p.next()
 		return p.parseInt()
+	}
+	mult := 1
+	if p.ch == superMinus {
+		mult = -1
+		p.next()
 	}
 	for {
 		n := fromSuper(p.ch)
@@ -165,6 +170,7 @@ func (p *parser) parseExponent() (exp int64, err error) {
 	if exp == 0 {
 		return 0, errors.New("exponent must be > 0")
 	}
+	exp *= int64(mult)
 	return exp, nil
 }
 
@@ -173,7 +179,7 @@ var (
 	unitAfter = []*unicode.RangeTable{unicode.Letter, unicode.So, unicode.Number}
 )
 
-func (p *parser) parseUnitLine() (us []Unit, err error) {
+func (p *parser) parseUnitLine() (num, denom []Unit, err error) {
 	for unicode.IsOneOf(unitFirst, p.ch) {
 		start := p.n
 		p.next()
@@ -182,19 +188,28 @@ func (p *parser) parseUnitLine() (us []Unit, err error) {
 		}
 		name := p.value[start:p.n]
 		if found := p.reg.Find(name); found != nil {
-			us = append(us, found.Unit())
+			num = append(num, found.Unit())
 		} else if p.mustExist {
-			return nil, fmt.Errorf("unknown unit %q", name)
+			return nil, nil, fmt.Errorf("unknown unit %q", name)
 		} else {
-			us = append(us, p.reg.Register(Primitive(name)).Unit())
+			num = append(num, p.reg.Register(Primitive(name)).Unit())
 		}
-		if p.isExponent() {
+		if isExponent(p.ch) {
 			exp, err := p.parseExponent()
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			for i := 1; i < int(exp); i++ {
-				us = append(us, us[len(us)-1])
+			if exp < 0 {
+				// If exp is <0, we have to add the units to the denominator
+				// instead of the numerator.
+				for i := 0; i < int(exp*-1); i++ {
+					denom = append(denom, num[len(num)-1])
+				}
+				num = num[:len(num)-1]
+			} else {
+				for i := 1; i < int(exp); i++ {
+					num = append(num, num[len(num)-1])
+				}
 			}
 		}
 		p.skipSpaces()
@@ -202,6 +217,14 @@ func (p *parser) parseUnitLine() (us []Unit, err error) {
 	return
 }
 
+// Parse attempts to parse a qualified value contained in str.  It accepts
+// values of the form "1.234 kg m/s^2" and "1.234 kg⋅m⋅s⁻²"
+// (using U+22C5 DOT OPERATOR).  If reg is provided, unit symbols will be
+// looked up in reg and used if found.  If mustExist is false, any units
+// parsed but missing from the registry will be added as primitive units.
+// Otherwise, an error will be generated.
+//
+// This is experimental and the API is likely to change.
 func Parse(str string, reg *Registry, mustExist bool) (val Value, err error) {
 	p := newParser(str, reg, mustExist)
 
