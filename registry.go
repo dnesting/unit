@@ -79,3 +79,12 @@ func (r *Registry) Find(n string) Maker {
 	}
 	return r.Parent.Find(n)
 }
+
+func (r *Registry) Merge(p *Registry) {
+	for s, m := range p.syms {
+		r.syms[s] = m
+	}
+	for s, m := range p.pref {
+		r.pref[s] = m
+	}
+}
