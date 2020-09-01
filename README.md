@@ -1,5 +1,10 @@
 # unit
 
+[![GoDoc](https://godoc.org/github.com/dnesting/unit?status.svg)](https://godoc.org/github.com/dnesting/unit)
+[![Build Status](https://travis-ci.org/dnesting/unit.svg?branch=master)](https://travis-ci.org/dnesting/unit)
+[![codecov](https://coveralls.io/repos/github/dnesting/unit/badge.svg?branch=master)](https://coveralls.io/github/dnesting/unit?branch=master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/dnesting/unit)](https://goreportcard.com/report/github.com/dnesting/unit)
+
 This is a work in progress.
 
 The goal is to enable light-weight operations on values with units attached to them, including implicit unit conversion.
